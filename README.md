@@ -33,3 +33,16 @@ cd basic_config_mac
 chmod +x setup.sh
 ./setup.sh
 ```
+
+---
+
+## 🔤 Post-Install: Set Terminal Font
+
+After running the setup script, you need to configure your terminal to use the **Meslo Nerd Font** so that Powerlevel10k icons and glyphs render correctly.
+
+### iTerm2
+
+1. Open **iTerm2** → **Settings** (`Cmd + ,`)
+2. Go to **Profiles** → **Text**
+3. Under **Font**, select **MesloLGS NF**
+4. Restart iTerm2

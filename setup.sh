@@ -31,7 +31,7 @@ is_command_installed() { command -v "$1" &>/dev/null; }
 
 install_cask() {
   local cask="$1" label="${2:-$1}"
-  if is_cask_installed "$cask"; then
+  if is_cask_installed "$cask" || is_app_installed "$label"; then
     print_skip "$label"
   else
     print_step "Installing $label…"
@@ -53,14 +53,6 @@ declare -a APP_CATALOGUE=(
   "iterm2|iTerm2|cask|iterm2|cask"
   "vscode|Visual Studio Code|cask|visual-studio-code|cask"
   "neovim|Neovim|formula|neovim|formula"
-  "jq|jq|formula|jq|formula"
-  "htop|htop|formula|htop|formula"
-  "fzf|fzf|formula|fzf|formula"
-  "bat|bat|formula|bat|formula"
-  "ripgrep|ripgrep (rg)|formula|ripgrep|formula"
-  "tree|tree|formula|tree|formula"
-  "git|git|formula|git|formula"
-  "fd|fd|formula|fd|formula"
   "discord|Discord|cask|discord|cask"
   "setapp|Setapp|cask|setapp|cask"
   "claude|Claude Desktop|cask|claude|cask"
@@ -68,9 +60,19 @@ declare -a APP_CATALOGUE=(
   "steam|Steam|cask|steam|cask"
   "spotify|Spotify|cask|spotify|cask"
   "teams|Microsoft Teams|cask|microsoft-teams|cask"
+  "jq|jq (JSON processor)|formula|jq|formula"
+  "htop|htop (interactive process viewer)|formula|htop|formula"
+  "fzf|fzf (fuzzy finder)|formula|fzf|formula"
+  "bat|bat (cat with syntax highlighting)|formula|bat|formula"
+  "ripgrep|ripgrep (fast recursive grep)|formula|ripgrep|formula"
+  "tree|tree (directory structure viewer)|formula|tree|formula"
+  "fd|fd (fast file finder)|formula|fd|formula"
 )
 
 show_menu() {
+  set +e  # disable errexit — interactive menu uses many [ ] && patterns
+           # whose false-branch exit code would kill the script under set -e
+
   print_header "📦 macOS Setup — Select What to Install"
   echo -e "  ${BOLD}↑/↓${RESET} navigate  ${BOLD}Space${RESET} toggle  ${BOLD}a${RESET} all  ${BOLD}n${RESET} none  ${BOLD}Enter${RESET} confirm\n"
   echo -e "  ${GREEN}[x]${RESET} will install   ${YELLOW}[~]${RESET} already installed   [ ] skip\n"
@@ -112,7 +114,7 @@ show_menu() {
         checkbox="[ ]"
       fi
 
-      printf "%s%s %-32s\n" "$prefix" "$(echo -e "$checkbox")" "${LABELS[$i]}"
+      printf "%b%b %-32s\n" "$prefix" "$checkbox" "${LABELS[$i]}"
     done
     echo ""
     echo -e "  ${BOLD}↑/↓${RESET} navigate  ${BOLD}Space${RESET} toggle  ${BOLD}a${RESET} all  ${BOLD}n${RESET} none  ${BOLD}Enter${RESET} confirm"
@@ -125,10 +127,10 @@ show_menu() {
     IFS= read -rsn1 key
     case "$key" in
       $'\x1b')
-        read -rsn2 -t 0.1 key2
+        read -rsn2 -t 1 key2
         case "$key2" in
-          '[A') [ "$cursor" -gt 0 ] && ((cursor--)) ;;
-          '[B') [ "$cursor" -lt $((count-1)) ] && ((cursor++)) ;;
+          '[A') [ "$cursor" -gt 0 ] && cursor=$(( cursor - 1 )) ;;
+          '[B') [ "$cursor" -lt $((count-1)) ] && cursor=$(( cursor + 1 )) ;;
         esac
         ;;
       ' ')
@@ -150,6 +152,8 @@ show_menu() {
   for i in $(seq 0 $((count-1))); do
     [ "${SELECTED[$i]}" -eq 1 ] && [ "${IS_INSTALLED[$i]}" = "false" ] && INSTALL_QUEUE+=("${KEYS[$i]}")
   done
+
+  set -e  # re-enable errexit after interactive menu
 }
 
 run_installs() {
@@ -200,6 +204,13 @@ setup_zsh() {
     git clone https://github.com/zsh-users/zsh-syntax-highlighting "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
   else
     print_skip "zsh-syntax-highlighting"
+  fi
+
+  if [ ! -d "$ZSH_CUSTOM/plugins/zsh-vi-mode" ]; then
+    print_step "Installing zsh-vi-mode…"
+    git clone https://github.com/jeffreytse/zsh-vi-mode "$ZSH_CUSTOM/plugins/zsh-vi-mode"
+  else
+    print_skip "zsh-vi-mode"
   fi
 
   if [ ! -d "$ZSH_CUSTOM/themes/powerlevel10k" ]; then
@@ -271,10 +282,13 @@ main() {
   print_header "🍎 basic_config_mac — Extended Setup"
   echo -e "  ${CYAN}Automate your macOS dev environment setup.${RESET}\n"
 
+  [ -f "/opt/homebrew/bin/brew" ] && eval "$(/opt/homebrew/bin/brew shellenv)" || true
+  [ -f "/usr/local/bin/brew" ]    && eval "$(/usr/local/bin/brew shellenv)"    || true
+
   if ! is_command_installed "brew"; then
     print_step "Installing Homebrew…"
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    [ -f "/opt/homebrew/bin/brew" ] && eval "$(/opt/homebrew/bin/brew shellenv)"
+    [ -f "/opt/homebrew/bin/brew" ] && eval "$(/opt/homebrew/bin/brew shellenv)" || true
     print_ok "Homebrew installed."
   else
     print_skip "Homebrew"
@@ -287,11 +301,11 @@ main() {
 
   echo ""
   read -rp "$(echo -e "${BOLD}Set up Zsh + Oh My Zsh + Powerlevel10k? [Y/n] ${RESET}")" zsh_ans
-  [[ "${zsh_ans,,}" != "n" ]] && setup_zsh
+  [[ "$zsh_ans" != [nN] ]] && setup_zsh
 
   echo ""
   read -rp "$(echo -e "${BOLD}Set up Neovim + plugins + LSP servers? [Y/n] ${RESET}")" nvim_ans
-  [[ "${nvim_ans,,}" != "n" ]] && setup_neovim
+  [[ "$nvim_ans" != [nN] ]] && setup_neovim
 
   print_header "✅ Setup Complete!"
   echo -e "  Restart your terminal (sau ${CYAN}exec zsh${RESET}) pentru a aplica modificările.\n"
