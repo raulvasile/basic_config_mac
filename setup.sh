@@ -31,7 +31,7 @@ is_command_installed() { command -v "$1" &>/dev/null; }
 
 install_cask() {
   local cask="$1" label="${2:-$1}"
-  if is_cask_installed "$cask" || is_app_installed "$label"; then
+  if is_cask_installed "$cask"; then
     print_skip "$label"
   else
     print_step "Installing $label…"
@@ -53,6 +53,15 @@ declare -a APP_CATALOGUE=(
   "iterm2|iTerm2|cask|iterm2|cask"
   "vscode|Visual Studio Code|cask|visual-studio-code|cask"
   "neovim|Neovim|formula|neovim|formula"
+  "jq|jq|formula|jq|formula"
+  "htop|htop|formula|htop|formula"
+  "fzf|fzf|formula|fzf|formula"
+  "bat|bat|formula|bat|formula"
+  "ripgrep|ripgrep (rg)|formula|ripgrep|formula"
+  "tree|tree|formula|tree|formula"
+  "git|git|formula|git|formula"
+  "fd|fd|formula|fd|formula"
+  "node|Node.js|formula|node|formula"
   "discord|Discord|cask|discord|cask"
   "setapp|Setapp|cask|setapp|cask"
   "claude|Claude Desktop|cask|claude|cask"
@@ -60,13 +69,6 @@ declare -a APP_CATALOGUE=(
   "steam|Steam|cask|steam|cask"
   "spotify|Spotify|cask|spotify|cask"
   "teams|Microsoft Teams|cask|microsoft-teams|cask"
-  "jq|jq (JSON processor)|formula|jq|formula"
-  "htop|htop (interactive process viewer)|formula|htop|formula"
-  "fzf|fzf (fuzzy finder)|formula|fzf|formula"
-  "bat|bat (cat with syntax highlighting)|formula|bat|formula"
-  "ripgrep|ripgrep (fast recursive grep)|formula|ripgrep|formula"
-  "tree|tree (directory structure viewer)|formula|tree|formula"
-  "fd|fd (fast file finder)|formula|fd|formula"
 )
 
 show_menu() {
@@ -114,7 +116,7 @@ show_menu() {
         checkbox="[ ]"
       fi
 
-      printf "%b%b %-32s\n" "$prefix" "$checkbox" "${LABELS[$i]}"
+      printf "%s%s %-32s\n" "$prefix" "$(echo -e "$checkbox")" "${LABELS[$i]}"
     done
     echo ""
     echo -e "  ${BOLD}↑/↓${RESET} navigate  ${BOLD}Space${RESET} toggle  ${BOLD}a${RESET} all  ${BOLD}n${RESET} none  ${BOLD}Enter${RESET} confirm"
@@ -206,13 +208,6 @@ setup_zsh() {
     print_skip "zsh-syntax-highlighting"
   fi
 
-  if [ ! -d "$ZSH_CUSTOM/plugins/zsh-vi-mode" ]; then
-    print_step "Installing zsh-vi-mode…"
-    git clone https://github.com/jeffreytse/zsh-vi-mode "$ZSH_CUSTOM/plugins/zsh-vi-mode"
-  else
-    print_skip "zsh-vi-mode"
-  fi
-
   if [ ! -d "$ZSH_CUSTOM/themes/powerlevel10k" ]; then
     print_step "Installing Powerlevel10k…"
     git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$ZSH_CUSTOM/themes/powerlevel10k"
@@ -301,11 +296,11 @@ main() {
 
   echo ""
   read -rp "$(echo -e "${BOLD}Set up Zsh + Oh My Zsh + Powerlevel10k? [Y/n] ${RESET}")" zsh_ans
-  [[ "$zsh_ans" != [nN] ]] && setup_zsh
+  [[ "${zsh_ans,,}" != "n" ]] && setup_zsh
 
   echo ""
   read -rp "$(echo -e "${BOLD}Set up Neovim + plugins + LSP servers? [Y/n] ${RESET}")" nvim_ans
-  [[ "$nvim_ans" != [nN] ]] && setup_neovim
+  [[ "${nvim_ans,,}" != "n" ]] && setup_neovim
 
   print_header "✅ Setup Complete!"
   echo -e "  Restart your terminal (sau ${CYAN}exec zsh${RESET}) pentru a aplica modificările.\n"

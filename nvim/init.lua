@@ -99,19 +99,18 @@ require("lazy").setup({
     "nvim-treesitter/nvim-treesitter",
     build  = ":TSUpdate",
     event  = { "BufReadPost", "BufNewFile" },
-    config = function()
-      require("nvim-treesitter.configs").setup({
-        ensure_installed = {
-          "lua", "vim", "vimdoc",
-          "typescript", "tsx", "javascript",
-          "html", "css", "svelte",
-          "json", "yaml", "toml",
-          "bash", "markdown", "markdown_inline",
-        },
-        highlight    = { enable = true },
-        indent       = { enable = true },
-        auto_install = true,
-      })
+    opts = {
+      ensure_installed = {
+        "lua", "vim", "vimdoc",
+        "typescript", "tsx", "javascript",
+        "html", "css", "svelte",
+        "json", "yaml", "toml",
+        "bash", "markdown", "markdown_inline",
+      },
+      auto_install = true,
+    },
+    config = function(_, opts)
+      require("nvim-treesitter").setup(opts)
     end,
   },
 
@@ -170,7 +169,7 @@ require("lazy").setup({
     end,
   },
 
-  -- ── nvim-lspconfig — LSP setup ───────────────────────────────────────────
+  -- ── nvim-lspconfig — LSP setup (nvim 0.11+ API) ─────────────────────────
   {
     "neovim/nvim-lspconfig",
     dependencies = {
@@ -178,29 +177,7 @@ require("lazy").setup({
       "hrsh7th/cmp-nvim-lsp",
     },
     config = function()
-      local lspconfig   = require("lspconfig")
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
-
-      -- Shared on_attach: keymaps available when LSP connects
-      local on_attach = function(_, bufnr)
-        local map = function(keys, func, desc)
-          vim.keymap.set("n", keys, func, { buffer = bufnr, desc = "LSP: " .. desc })
-        end
-
-        map("gd",  vim.lsp.buf.definition,      "Go to Definition")
-        map("gD",  vim.lsp.buf.declaration,     "Go to Declaration")
-        map("gr",  vim.lsp.buf.references,      "References")
-        map("gi",  vim.lsp.buf.implementation,  "Implementation")
-        map("K",   vim.lsp.buf.hover,           "Hover Docs")
-        map("<leader>rn", vim.lsp.buf.rename,   "Rename")
-        map("<leader>ca", vim.lsp.buf.code_action, "Code Action")
-        map("<leader>cf", function() vim.lsp.buf.format({ async = true }) end, "Format")
-
-        -- Diagnostics
-        map("[d", vim.diagnostic.goto_prev,  "Prev Diagnostic")
-        map("]d", vim.diagnostic.goto_next,  "Next Diagnostic")
-        map("<leader>e", vim.diagnostic.open_float, "Show Diagnostic")
-      end
 
       -- Diagnostic signs (Catppuccin-friendly icons)
       local signs = { Error = " ", Warn = " ", Hint = "󰠠 ", Info = " " }
@@ -210,37 +187,38 @@ require("lazy").setup({
       end
 
       vim.diagnostic.config({
-        virtual_text   = { prefix = "●" },
+        virtual_text     = { prefix = "●" },
         update_in_insert = false,
-        severity_sort  = true,
-        float          = { border = "rounded" },
+        severity_sort    = true,
+        float            = { border = "rounded" },
       })
 
-      -- Individual server configs
-      local servers = { "html", "cssls", "jsonls", "svelte", "eslint" }
-      for _, server in ipairs(servers) do
-        lspconfig[server].setup({ on_attach = on_attach, capabilities = capabilities })
-      end
-
-      lspconfig.ts_ls.setup({
-        on_attach    = on_attach,
+      -- Default capabilities for all servers
+      vim.lsp.config("*", {
         capabilities = capabilities,
-        settings     = {
+      })
+
+      -- Server-specific settings
+      vim.lsp.config("ts_ls", {
+        settings = {
           typescript = { inlayHints = { includeInlayParameterNameHints = "all" } },
           javascript = { inlayHints = { includeInlayParameterNameHints = "all" } },
         },
       })
 
-      lspconfig.lua_ls.setup({
-        on_attach    = on_attach,
-        capabilities = capabilities,
-        settings     = {
+      vim.lsp.config("lua_ls", {
+        settings = {
           Lua = {
             diagnostics = { globals = { "vim" } },
             workspace   = { checkThirdParty = false },
             telemetry   = { enable = false },
           },
         },
+      })
+
+      -- Enable all servers
+      vim.lsp.enable({
+        "ts_ls", "eslint", "svelte", "html", "cssls", "lua_ls", "jsonls",
       })
     end,
   },
@@ -365,19 +343,16 @@ require("lazy").setup({
   {
     "folke/which-key.nvim",
     event  = "VeryLazy",
-    config = function()
-      require("which-key").setup({
-        window = { border = "rounded" },
-      })
-      -- Group labels for leader key
-      require("which-key").register({
-        ["<leader>f"] = { name = "Find (Telescope)" },
-        ["<leader>g"] = { name = "Git" },
-        ["<leader>x"] = { name = "Diagnostics" },
-        ["<leader>c"] = { name = "Code / LSP" },
-        ["<leader>r"] = { name = "Rename" },
-      })
-    end,
+    opts = {
+      win    = { border = "rounded" },
+      spec   = {
+        { "<leader>f", group = "Find (Telescope)" },
+        { "<leader>g", group = "Git" },
+        { "<leader>x", group = "Diagnostics" },
+        { "<leader>c", group = "Code / LSP" },
+        { "<leader>r", group = "Rename" },
+      },
+    },
   },
 
   -- ── Autopairs ─────────────────────────────────────────────────────────────
@@ -418,6 +393,28 @@ require("lazy").setup({
       },
     },
   },
+})
+
+-- ── LSP keymaps (attached per buffer) ────────────────────────────────────────
+vim.api.nvim_create_autocmd("LspAttach", {
+  callback = function(args)
+    local bufnr = args.buf
+    local m = function(keys, func, desc)
+      vim.keymap.set("n", keys, func, { buffer = bufnr, desc = "LSP: " .. desc })
+    end
+
+    m("gd",          vim.lsp.buf.definition,      "Go to Definition")
+    m("gD",          vim.lsp.buf.declaration,      "Go to Declaration")
+    m("gr",          vim.lsp.buf.references,       "References")
+    m("gi",          vim.lsp.buf.implementation,   "Implementation")
+    m("K",           vim.lsp.buf.hover,            "Hover Docs")
+    m("<leader>rn",  vim.lsp.buf.rename,           "Rename")
+    m("<leader>ca",  vim.lsp.buf.code_action,      "Code Action")
+    m("<leader>cf",  function() vim.lsp.buf.format({ async = true }) end, "Format")
+    m("[d",          vim.diagnostic.goto_prev,      "Prev Diagnostic")
+    m("]d",          vim.diagnostic.goto_next,      "Next Diagnostic")
+    m("<leader>e",   vim.diagnostic.open_float,     "Show Diagnostic")
+  end,
 })
 
 -- ── Extra keymaps ─────────────────────────────────────────────────────────────
